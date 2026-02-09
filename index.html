@@ -3,16 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>AR HTML Mockup</title>
+    <title>AR HTML Mockup Pro</title>
     
     <!-- A-Frame 1.2.0 -->
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
     <!-- AR.js -->
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
-    <!-- HTML2Canvas (Converts DOM to Texture) -->
+    <!-- HTML2Canvas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <!-- Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for Generated UIs -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
 
     <style>
         :root { 
@@ -21,7 +25,7 @@
         }
         
         body { 
-            margin: 0; overflow: hidden; background-color: #000; font-family: sans-serif;
+            margin: 0; overflow: hidden; background-color: #000; font-family: 'Inter', sans-serif;
             position: fixed; width: 100%; height: 100%;
         }
 
@@ -35,70 +39,128 @@
         .interactive { pointer-events: auto !important; }
 
         .glass {
-            background: rgba(15, 23, 42, 0.8);
-            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.15);
             border-radius: 16px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
         }
 
         /* --- Settings Modal --- */
         #settings-modal {
             position: fixed; inset: 0; z-index: 3000;
             background: rgba(0,0,0,0.95);
-            display: none; align-items: center; justify-content: center;
+            display: none; flex-direction: column; align-items: center; justify-content: flex-start;
+            padding-top: calc(2rem + var(--safe-top));
+            overflow-y: auto;
+        }
+
+        /* --- Console Logs --- */
+        #console-log {
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            color: #00ff00;
+            background: rgba(0,0,0,0.8);
+            width: 100%;
+            max-width: 90%;
+            height: 150px;
+            overflow-y: auto;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 8px;
+            margin-top: 10px;
+            white-space: pre-wrap;
         }
 
         /* --- Loading Spinner --- */
         #loader {
-            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            z-index: 1500; display: none; flex-direction: column; align-items: center;
-            background: rgba(0,0,0,0.7); padding: 20px; border-radius: 20px;
+            position: fixed; inset: 0;
+            z-index: 1500; display: none; flex-direction: column; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.85); backdrop-filter: blur(5px);
         }
         .spinner {
-            width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3);
+            width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.1);
             border-radius: 50%; border-top-color: #3b82f6;
-            animation: spin 1s ease-in-out infinite;
+            animation: spin 0.8s ease-in-out infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
         /* --- Off-screen Rendering Stage --- */
-        /* This is where we inject Gemini's HTML to snapshot it. 
-           Must be visible (not display:none) but off-screen for html2canvas to work. */
         #render-stage {
             position: fixed;
-            top: 0; left: -9999px;
-            width: 375px; height: 667px; /* Standard Mobile Ratio */
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 375px; height: 667px;
             background: white;
             overflow: hidden;
-            z-index: 0;
+            z-index: 2000; /* Above everything when visible */
+            display: none; /* Toggled via JS */
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+            border: 2px solid #3b82f6;
+        }
+        
+        #render-stage.hidden-mode {
+            display: block;
+            visibility: hidden; /* layout active but invisible */
+            z-index: -1;
+            transform: none;
+            top: 0; left: -9999px;
+        }
+
+        /* UI Helpers */
+        .btn-primary {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: white; font-weight: 700; padding: 12px 20px;
+            border-radius: 12px; transition: transform 0.1s;
+        }
+        .btn-primary:active { transform: scale(0.96); }
+        
+        .status-badge {
+            font-size: 10px; font-weight: 800; text-transform: uppercase;
+            padding: 4px 8px; border-radius: 99px; color: white;
+            display: flex; align-items: center; gap: 6px;
         }
     </style>
 </head>
 <body>
 
-    <!-- SETTINGS MODAL -->
+    <!-- SETTINGS / DEBUG MODAL -->
     <div id="settings-modal" class="interactive">
-        <div class="glass w-full max-w-sm p-6 mx-4">
-            <h3 class="text-white font-bold text-lg mb-2">Setup API Key</h3>
-            <p class="text-slate-400 text-xs mb-4">Gemini 2.5 Flash is used to code the UI.</p>
-            <input type="password" id="api-key" placeholder="Paste Gemini API Key here..." class="w-full bg-slate-800 border border-slate-600 rounded p-3 text-white text-sm mb-4 outline-none focus:border-blue-500">
-            <button onclick="saveKey()" class="w-full bg-blue-600 text-white font-bold py-3 rounded hover:bg-blue-500">Save & Start</button>
+        <div class="glass w-full max-w-sm p-6 mx-4 mb-4">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-white font-bold text-lg">System Config</h3>
+                <button onclick="toggleSettings(false)" class="text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-xmark fa-lg"></i>
+                </button>
+            </div>
+            
+            <label class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2 block">Gemini API Key</label>
+            <input type="password" id="api-key" placeholder="AIza..." class="w-full bg-slate-900/50 border border-slate-700 rounded-lg p-3 text-white text-sm mb-4 outline-none focus:border-blue-500 font-mono">
+            
+            <div class="flex gap-2 mb-6">
+                <button onclick="saveKey()" class="flex-1 btn-primary text-sm">Save & Connect</button>
+                <button onclick="clearLogs()" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-lg text-sm font-bold">Clear Logs</button>
+            </div>
+
+            <label class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2 block">System Logs</label>
+            <div id="console-log">Logs will appear here...</div>
         </div>
     </div>
 
-    <!-- LOADING INDICATOR -->
+    <!-- PROGRESS OVERLAY -->
     <div id="loader">
-        <div class="spinner mb-3"></div>
-        <span class="text-white font-bold text-sm tracking-widest">CODING UI...</span>
+        <div class="spinner mb-6"></div>
+        <h2 class="text-white font-bold text-xl mb-2 tracking-wide">PROCESSING</h2>
+        <p id="progress-text" class="text-blue-400 text-xs font-mono">Initializing...</p>
+        <button onclick="cancelGeneration()" class="mt-8 text-slate-500 text-sm hover:text-white underline interactive">Cancel</button>
     </div>
 
-    <!-- HIDDEN RENDER STAGE (Where the HTML lives before AR) -->
-    <div id="render-stage">
-        <!-- Default Placeholder Content -->
-        <div style="width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; background: #1e293b; color:white; font-family:sans-serif;">
-            <div style="font-size: 80px;">🎨</div>
-            <h1 style="margin-top:20px;">AR UI</h1>
-            <p style="opacity:0.6;">Ready to Render</p>
+    <!-- RENDER STAGE (The HTML Container) -->
+    <div id="render-stage" class="hidden-mode">
+        <!-- Default Placeholder -->
+        <div class="flex flex-col items-center justify-center h-full bg-slate-900 text-white font-sans p-8 text-center">
+            <div class="text-6xl mb-4">✨</div>
+            <h1 class="text-2xl font-bold mb-2">AR Canvas</h1>
+            <p class="text-slate-400">Enter a prompt to generate a new UI.</p>
         </div>
     </div>
 
@@ -106,178 +168,312 @@
     <a-scene 
         embedded 
         vr-mode-ui="enabled: false"
-        arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono; videoTexture: true;"
-        renderer="antialias: true; alpha: true; precision: medium;"
+        arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono; videoTexture: true; maxDetectionRate: 60;"
+        renderer="antialias: true; alpha: true; precision: medium; logarithmicDepthBuffer: true;"
+        id="scene"
     >
         <a-assets>
             <canvas id="ui-canvas" width="375" height="667"></canvas>
+            <img id="placeholder-tex" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=">
         </a-assets>
 
-        <a-marker preset="hiro" smooth="true">
-            <!-- The Plane that displays the Canvas -->
+        <a-marker preset="hiro" smooth="true" smoothCount="10" smoothTolerance="0.01" smoothThreshold="5">
             <a-plane 
                 id="ui-plane"
                 position="0 0.1 0" 
                 rotation="-90 0 0" 
                 width="1.8" 
                 height="3.2" 
-                material="src: #ui-canvas; transparent: true; opacity: 1; shader: flat;"
+                material="src: #ui-canvas; transparent: true; opacity: 1; shader: flat; side: double;"
             ></a-plane>
             
-            <!-- Glow under the UI -->
-            <a-plane position="0 0 0" rotation="-90 0 0" width="2.2" height="3.6" color="#3b82f6" material="opacity: 0.15; transparent: true"></a-plane>
+            <!-- Tracking Indicator Ring -->
+            <a-ring color="#00ff00" radius-inner="1.1" radius-outer="1.15" rotation="-90 0 0" opacity="0.5"></a-ring>
         </a-marker>
         
         <a-entity camera></a-entity>
     </a-scene>
 
-    <!-- MAIN UI -->
+    <!-- HUD -->
     <div id="app-ui">
+        <!-- Header -->
         <div class="flex justify-between items-start">
-            <div class="glass px-3 py-1.5 flex items-center gap-2">
-                <div id="status-dot" class="w-2 h-2 rounded-full bg-red-500"></div>
-                <span class="text-[10px] font-bold text-white uppercase">AR Ready</span>
+            <div class="glass px-4 py-2 flex items-center gap-3">
+                <div id="status-dot" class="w-2.5 h-2.5 rounded-full bg-red-500 transition-colors duration-300"></div>
+                <div class="flex flex-col">
+                    <span id="status-label" class="text-[10px] font-bold text-white uppercase leading-none mb-0.5">Searching</span>
+                    <span class="text-[8px] text-slate-400 leading-none">Hiro Marker</span>
+                </div>
             </div>
-            <button onclick="document.getElementById('settings-modal').style.display='flex'" class="interactive glass p-2 text-white/70">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-            </button>
+            
+            <div class="flex gap-2">
+                <button onclick="togglePreview()" id="btn-preview" class="interactive glass w-10 h-10 flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 active:scale-95 transition-all">
+                    <i class="fa-regular fa-eye"></i>
+                </button>
+                <button onclick="toggleSettings(true)" class="interactive glass w-10 h-10 flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 active:scale-95 transition-all">
+                    <i class="fa-solid fa-gear"></i>
+                </button>
+            </div>
         </div>
 
-        <div class="interactive glass p-3 shadow-2xl">
-            <p class="text-[10px] text-slate-400 font-bold uppercase mb-2 ml-1">Generate Interface</p>
+        <!-- Input Area -->
+        <div class="interactive glass p-4 shadow-2xl transition-transform duration-300 translate-y-0" id="input-panel">
+            <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-wand-magic-sparkles text-blue-400 text-xs"></i>
+                    <span class="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Gemini UI Engine</span>
+                </div>
+                <span class="text-[9px] text-slate-500 font-mono">v2.5-Flash</span>
+            </div>
+            
             <div class="flex gap-2">
-                <input id="prompt" type="text" placeholder="e.g., Login Screen, Music Player..." class="flex-1 bg-slate-800/80 text-white text-sm rounded-lg px-3 py-3 outline-none border border-transparent focus:border-blue-500">
-                <button id="btn-gen" class="bg-blue-600 text-white rounded-lg px-4 py-2 font-bold active:scale-95 transition-transform">
-                    GO
+                <input id="prompt" type="text" placeholder="e.g. Cyberpunk Crypto Wallet..." class="flex-1 bg-slate-900/60 border border-slate-700 text-white text-sm rounded-xl px-4 py-3 outline-none focus:border-blue-500 focus:bg-slate-900 transition-all placeholder-slate-500">
+                <button id="btn-gen" class="btn-primary shadow-lg shadow-blue-900/40 w-14 flex items-center justify-center">
+                    <i class="fa-solid fa-arrow-right"></i>
                 </button>
             </div>
         </div>
     </div>
 
     <script>
-        // --- Setup ---
-        const stage = document.getElementById('render-stage');
-        const uiCanvas = document.getElementById('ui-canvas');
-        const uiPlane = document.getElementById('ui-plane');
-        const ctx = uiCanvas.getContext('2d');
+        // --- Global State ---
+        const state = {
+            apiKey: localStorage.getItem('gemini_key_v2') || '',
+            isPreviewOpen: false,
+            isGenerating: false,
+            canvasCtx: document.getElementById('ui-canvas').getContext('2d')
+        };
+
+        // --- Logger System ---
+        function log(msg, type = 'info') {
+            const el = document.getElementById('console-log');
+            const time = new Date().toLocaleTimeString().split(' ')[0];
+            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+            const line = `[${time}] ${prefix} ${msg}\n`;
+            el.innerText += line;
+            el.scrollTop = el.scrollHeight;
+            console.log(msg); // Also log to browser console
+        }
         
-        let apiKey = localStorage.getItem('gemini_key') || '';
-        if(!apiKey) document.getElementById('settings-modal').style.display = 'flex';
+        function clearLogs() {
+            document.getElementById('console-log').innerText = '';
+            log('Logs cleared.');
+        }
+
+        // --- Initialization ---
+        window.addEventListener('load', () => {
+            log('App Loaded. Initializing AR system...');
+            
+            if(!state.apiKey) {
+                log('No API Key found. Opening settings.', 'error');
+                toggleSettings(true);
+            } else {
+                log('API Key found locally.', 'success');
+            }
+
+            // Init Canvas with placeholder
+            drawPlaceholderCanvas();
+
+            // Permissions Check
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                log('Camera API available.');
+            } else {
+                log('Camera API unavailable (Check HTTPS/Mobile)', 'error');
+            }
+        });
+
+        // --- AR Events ---
+        const marker = document.querySelector('a-marker');
+        marker.addEventListener('markerFound', () => {
+            document.getElementById('status-dot').className = "w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_10px_#22c55e]";
+            document.getElementById('status-label').innerText = "LOCKED";
+            document.getElementById('status-label').className = "text-[10px] font-bold text-green-400 uppercase leading-none mb-0.5";
+            log('Hiro Marker detected.');
+        });
+        marker.addEventListener('markerLost', () => {
+            document.getElementById('status-dot').className = "w-2.5 h-2.5 rounded-full bg-red-500";
+            document.getElementById('status-label').innerText = "SEARCHING";
+            document.getElementById('status-label').className = "text-[10px] font-bold text-white uppercase leading-none mb-0.5";
+        });
+
+        // --- UI Interactions ---
+        function toggleSettings(show) {
+            document.getElementById('settings-modal').style.display = show ? 'flex' : 'none';
+        }
 
         function saveKey() {
             const input = document.getElementById('api-key').value.trim();
-            if(input) {
-                apiKey = input;
-                localStorage.setItem('gemini_key', apiKey);
-                document.getElementById('settings-modal').style.display = 'none';
-                
-                // Init Camera on first save
-                initDefaultTexture();
+            if(input.length > 10) {
+                state.apiKey = input;
+                localStorage.setItem('gemini_key_v2', state.apiKey);
+                log('API Key Saved.', 'success');
+                toggleSettings(false);
+            } else {
+                alert('Please enter a valid API Key.');
             }
         }
 
-        // --- AR Marker Logic ---
-        const marker = document.querySelector('a-marker');
-        marker.addEventListener('markerFound', () => {
-            document.getElementById('status-dot').className = "w-2 h-2 rounded-full bg-green-500 animate-pulse";
-        });
-        marker.addEventListener('markerLost', () => {
-            document.getElementById('status-dot').className = "w-2 h-2 rounded-full bg-red-500";
-        });
+        function togglePreview() {
+            const stage = document.getElementById('render-stage');
+            state.isPreviewOpen = !state.isPreviewOpen;
+            
+            if(state.isPreviewOpen) {
+                stage.classList.remove('hidden-mode');
+                document.getElementById('btn-preview').classList.add('bg-blue-600', 'text-white');
+                document.getElementById('btn-preview').classList.remove('glass');
+                log('Opened 2D Preview Mode');
+            } else {
+                stage.classList.add('hidden-mode');
+                document.getElementById('btn-preview').classList.remove('bg-blue-600', 'text-white');
+                document.getElementById('btn-preview').classList.add('glass');
+                log('Closed 2D Preview Mode');
+            }
+        }
 
-        // --- Core Logic ---
+        function setProgress(msg) {
+            document.getElementById('progress-text').innerText = msg;
+            log(`Step: ${msg}`);
+        }
+
+        function cancelGeneration() {
+            document.getElementById('loader').style.display = 'none';
+            state.isGenerating = false;
+            log('Generation cancelled by user.');
+        }
+
+        // --- Generation Core ---
         document.getElementById('btn-gen').addEventListener('click', async () => {
-            const prompt = document.getElementById('prompt').value;
-            if(!prompt) return;
-            if(!apiKey) { alert('Set API Key first'); return; }
+            if(state.isGenerating) return;
+            const prompt = document.getElementById('prompt').value.trim();
+            
+            if(!prompt) { log('Empty prompt ignored.'); return; }
+            if(!state.apiKey) { toggleSettings(true); return; }
 
-            // UI Feedback
+            // Start UI
             document.getElementById('prompt').blur();
             document.getElementById('loader').style.display = 'flex';
+            state.isGenerating = true;
 
             try {
-                // 1. Generate HTML Code with Gemini 2.5 Flash
+                // 1. Fetch Code
+                setProgress('Connecting to Gemini AI...');
                 const htmlCode = await fetchGeminiCode(prompt);
                 
-                // 2. Inject into hidden Stage
+                // 2. Inject Code
+                setProgress('Compiling HTML Structure...');
+                const stage = document.getElementById('render-stage');
                 stage.innerHTML = htmlCode;
+                
+                // Allow DOM to settle (load fonts, styles)
+                await new Promise(r => setTimeout(r, 1000));
 
-                // 3. Convert Stage to Canvas (Snapshot)
-                // We use a slight timeout to ensure CSS/Fonts render
-                setTimeout(async () => {
-                    try {
-                        const canvas = await html2canvas(stage, {
-                            scale: 2, // Retina quality
-                            useCORS: true,
-                            backgroundColor: null // Transparent if CSS allows
-                        });
+                // 3. Rasterize
+                setProgress('Rendering High-Res Texture...');
+                const canvas = await html2canvas(stage, {
+                    scale: 2, 
+                    useCORS: true,
+                    logging: false,
+                    backgroundColor: null,
+                    width: 375,
+                    height: 667
+                });
 
-                        // 4. Update A-Frame Texture
-                        updateARPlane(canvas);
-                    } catch (e) {
-                        console.error("Canvas Error:", e);
-                    }
+                // 4. Apply to AR
+                setProgress('Updating AR Materials...');
+                updateARPlane(canvas);
+                
+                log('Process Complete!', 'success');
+                
+                // Auto-close loader
+                setTimeout(() => {
                     document.getElementById('loader').style.display = 'none';
+                    state.isGenerating = false;
                 }, 500);
 
             } catch (err) {
-                console.error(err);
-                alert("Generation failed: " + err.message);
+                log(err.message, 'error');
+                alert("Error: " + err.message);
                 document.getElementById('loader').style.display = 'none';
+                state.isGenerating = false;
             }
         });
 
         async function fetchGeminiCode(userPrompt) {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${state.apiKey}`;
             
             const systemPrompt = `
-                You are a UI Engineer. Output ONLY raw HTML code. 
-                1. Create a beautiful mobile UI screen for: "${userPrompt}". 
-                2. Use INLINE CSS for everything (style="..."). Do NOT use <style> tags or external links.
-                3. Container size is width: 375px; height: 667px.
-                4. Make it colorful, modern, high contrast. Use gradients.
-                5. Do NOT include markdown backticks like \`\`\`html. Just return the raw code.
-                6. Ensure the outer div fills 100% height/width.
+                Role: Expert UI Designer.
+                Task: Generate HTML for a mobile app screen (375x667).
+                Query: "${userPrompt}"
+                
+                Constraints:
+                1. Output raw HTML only. No Markdown. No \`\`\` fences.
+                2. Use inline CSS for ALL styling. No <style> blocks.
+                3. Use FontAwesome classes (e.g., <i class="fa-solid fa-user"></i>) for icons.
+                4. Font family is 'Inter', sans-serif.
+                5. Use CSS gradients for backgrounds. DO NOT use <img> tags requiring external URLs (CORS issues).
+                6. Make it colorful, high contrast, and fill the container height:100% width:100%.
             `;
 
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: systemPrompt }] }]
-                })
-            });
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: systemPrompt }] }]
+                    })
+                });
 
-            const data = await response.json();
-            let text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-            
-            // Clean up markdown if Gemini adds it despite instructions
-            text = text.replace(/```html/g, '').replace(/```/g, '');
-            return text;
-        }
+                if(!response.ok) throw new Error(`API Error: ${response.status}`);
 
-        function updateARPlane(sourceCanvas) {
-            // Draw the html2canvas result onto our texture canvas
-            ctx.clearRect(0, 0, uiCanvas.width, uiCanvas.height);
-            ctx.drawImage(sourceCanvas, 0, 0, 375, 667);
-            
-            // Tell A-Frame the texture updated
-            const mesh = uiPlane.getObject3D('mesh');
-            if (mesh && mesh.material && mesh.material.map) {
-                mesh.material.map.needsUpdate = true;
+                const data = await response.json();
+                let text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                
+                // Clean Markdown
+                text = text.replace(/```html/g, '').replace(/```/g, '');
+                
+                log(`Received ${text.length} bytes of code.`);
+                return text;
+
+            } catch (e) {
+                throw new Error("AI Connection Failed. Check API Key.");
             }
         }
 
-        function initDefaultTexture() {
-            // Render the initial placeholder to the canvas
-            html2canvas(stage).then(canvas => updateARPlane(canvas));
+        function updateARPlane(sourceCanvas) {
+            const destCtx = state.canvasCtx;
+            const destCanvas = document.getElementById('ui-canvas');
+            
+            // Clear and Draw
+            destCtx.clearRect(0, 0, destCanvas.width, destCanvas.height);
+            destCtx.drawImage(sourceCanvas, 0, 0, 375, 667);
+            
+            // Texture Update Logic
+            const plane = document.getElementById('ui-plane');
+            const mesh = plane.getObject3D('mesh');
+            if (mesh && mesh.material && mesh.material.map) {
+                mesh.material.map.needsUpdate = true;
+                log('Texture Refreshed.');
+            } else {
+                log('Warning: AR Mesh not ready yet.');
+            }
         }
 
-        // Mobile Permissions Trigger (needed for iOS audio/video sometimes)
-        window.addEventListener('click', () => {
-            const video = document.querySelector('video');
-            if(video) video.play();
-        }, {once:true});
+        function drawPlaceholderCanvas() {
+            const ctx = state.canvasCtx;
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(0,0,375,667);
+            ctx.fillStyle = '#3b82f6';
+            ctx.font = 'bold 30px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText("AR READY", 187, 333);
+            ctx.font = '16px Arial';
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillText("Scan Hiro Marker", 187, 370);
+            
+            const plane = document.getElementById('ui-plane');
+            if(plane.getObject3D('mesh')) plane.getObject3D('mesh').material.map.needsUpdate = true;
+        }
 
     </script>
 </body>
