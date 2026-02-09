@@ -5,19 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>AR UI Mockup Pro</title>
     
-    <!-- AR.js requires specific versions of A-Frame for stability -->
+    <!-- Stable A-Frame + AR.js -->
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
-        :root { --safe-top: env(safe-area-inset-top, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px); }
-        body { margin: 0; overflow: hidden; background: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        :root { 
+            --safe-top: env(safe-area-inset-top, 0px); 
+            --safe-bottom: env(safe-area-inset-bottom, 0px); 
+        }
+        
+        /* Force camera to fill entire background without letterboxing */
+        html, body { 
+            margin: 0; 
+            padding: 0; 
+            width: 100%; 
+            height: 100%; 
+            overflow: hidden; 
+            background-color: #000;
+            position: fixed; /* Prevent scrolling/bouncing on iOS */
+        }
         
         #app-ui {
             position: fixed;
             inset: 0;
-            z-index: 100;
+            z-index: 1000;
             pointer-events: none;
             display: flex;
             flex-direction: column;
@@ -27,20 +40,19 @@
 
         .interactive { pointer-events: auto; }
 
-        .glass-panel {
-            background: rgba(15, 23, 42, 0.7);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 24px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        .glass {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 28px;
         }
 
         #boot-screen {
             position: fixed;
             inset: 0;
             z-index: 2000;
-            background: #0f172a;
+            background: #020617;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -50,205 +62,201 @@
             padding: 2rem;
         }
 
-        #loading-indicator {
+        #gen-overlay {
             position: fixed;
             inset: 0;
             z-index: 1500;
-            background: rgba(0,0,0,0.6);
+            background: rgba(0,0,0,0.8);
             display: none;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
             color: white;
         }
 
-        .spinner {
-            width: 48px;
-            height: 48px;
-            border: 4px solid rgba(255, 255, 255, 0.2);
-            border-top-color: #3b82f6;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        /* AR.js Video Scaling Fixes */
+        .a-canvas { width: 100% !important; height: 100% !important; }
+        #arjs-video { object-fit: cover !important; width: 100vw !important; height: 100vh !important; }
 
-        /* AR.js specific overrides for mobile consistency */
-        .a-canvas { width: 100% !important; height: 100% !important; top: 0 !important; left: 0 !important; }
-        video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
+        .loading-pulse {
+            width: 60px; height: 60px;
+            border-radius: 50%;
+            background: #3b82f6;
+            animation: pulse 1.5s infinite ease-in-out;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.8); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(0.8); opacity: 0.5; }
+        }
     </style>
 </head>
 <body>
 
-    <!-- Boot / Permission Screen -->
+    <!-- Start / Camera Permission Screen -->
     <div id="boot-screen">
-        <div class="w-20 h-20 bg-blue-600/20 rounded-3xl flex items-center justify-center mb-6">
-            <svg class="w-10 h-10 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
-            </svg>
+        <div class="mb-8">
+            <div class="w-24 h-24 bg-blue-600/20 rounded-[2.5rem] flex items-center justify-center mx-auto mb-6 border border-blue-500/30">
+                <svg class="w-12 h-12 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+            </div>
+            <h1 class="text-3xl font-bold text-white mb-3">AR UI Explorer</h1>
+            <p class="text-slate-400 text-sm max-w-xs mx-auto leading-relaxed">Place your generated UI mockups onto a physical tracker in real-time.</p>
         </div>
-        <h1 class="text-3xl font-extrabold mb-2">AR UI Builder</h1>
-        <p class="text-slate-400 mb-8 max-w-sm text-balance">Bring your UI designs to life in AR. Requires camera access and a 'Hiro' marker target.</p>
-        <button id="btn-start" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-12 rounded-2xl transition-all transform active:scale-95 shadow-xl shadow-blue-500/30">
-            Initialize Camera
-        </button>
-        <p id="error-log" class="mt-6 text-xs text-red-400 font-mono hidden"></p>
+        
+        <div class="flex flex-col gap-3 w-full max-w-xs">
+            <button id="btn-start" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-8 rounded-2xl transition-all active:scale-95 shadow-2xl shadow-blue-600/20">
+                Launch AR Camera
+            </button>
+            <a href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png" target="_blank" class="text-blue-400 text-xs font-semibold py-2">
+                Download Hiro Marker Link
+            </a>
+        </div>
+        <p id="error-display" class="mt-4 text-[10px] text-red-500 font-mono hidden"></p>
     </div>
 
     <!-- Generation Loading -->
-    <div id="loading-indicator">
-        <div class="text-center">
-            <div class="spinner mx-auto mb-4"></div>
-            <p class="font-bold text-lg">Gemini is designing...</p>
-        </div>
+    <div id="gen-overlay">
+        <div class="loading-pulse mb-6"></div>
+        <p class="font-bold text-xl">Imagining UI...</p>
+        <p class="text-slate-400 text-xs mt-2">Gemini is rendering your concept</p>
     </div>
 
-    <!-- Main AR Scene Container -->
-    <div id="ar-viewport"></div>
+    <!-- Main AR Container -->
+    <div id="ar-container"></div>
 
-    <!-- User Interface Overlay -->
+    <!-- Interface -->
     <div id="app-ui">
         <div class="flex justify-between items-start">
-            <div class="glass-panel px-4 py-2 text-white text-xs font-mono uppercase tracking-widest border-blue-500/30">
-                Tracking: <span id="status-text" class="text-yellow-400">Searching...</span>
+            <div class="glass px-4 py-2 flex items-center gap-2">
+                <div id="status-dot" class="w-2 h-2 rounded-full bg-red-500"></div>
+                <span id="status-label" class="text-[10px] font-bold text-white uppercase tracking-tighter">Searching...</span>
             </div>
+            <button onclick="window.open('https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png','_blank')" class="interactive glass p-2 text-white/70 hover:text-white">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+            </button>
         </div>
 
-        <div class="interactive glass-panel p-5">
-            <div class="mb-3">
-                <label class="block text-[10px] text-blue-400 font-bold uppercase mb-1">Visual Prompt</label>
-                <textarea 
-                    id="prompt-field"
-                    placeholder="Describe your UI (e.g. Smart Watch Workout Screen)..."
-                    class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all resize-none"
-                    rows="2"
-                ></textarea>
+        <div class="interactive glass p-6 mb-4 shadow-3xl">
+            <div class="flex items-center gap-2 mb-4">
+                <div class="w-1 h-4 bg-blue-500 rounded-full"></div>
+                <h2 class="text-sm font-bold text-white uppercase tracking-widest">Mockup Engine</h2>
             </div>
-            <button id="btn-generate" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl transition-all active:scale-98 shadow-lg flex items-center justify-center gap-2">
-                <span>Generate & Project</span>
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+            
+            <textarea 
+                id="input-prompt"
+                placeholder="Describe your app screen (e.g. Modern Tesla Control Panel)..."
+                class="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none mb-4"
+                rows="2"
+            ></textarea>
+            
+            <button id="btn-generate" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-3">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                <span>Generate Mockup</span>
             </button>
         </div>
     </div>
 
     <script>
-        const apiKey = ""; // Canvas Injector handles this
+        const apiKey = "";
         const btnStart = document.getElementById('btn-start');
         const btnGenerate = document.getElementById('btn-generate');
-        const promptField = document.getElementById('prompt-field');
-        const arViewport = document.getElementById('ar-viewport');
+        const inputPrompt = document.getElementById('input-prompt');
+        const arContainer = document.getElementById('ar-container');
         const bootScreen = document.getElementById('boot-screen');
-        const loadingIndicator = document.getElementById('loading-indicator');
-        const statusText = document.getElementById('status-text');
-        const errorLog = document.getElementById('error-log');
+        const genOverlay = document.getElementById('gen-overlay');
+        const statusDot = document.getElementById('status-dot');
+        const statusLabel = document.getElementById('status-label');
 
-        let sceneLoaded = false;
+        let arActive = false;
 
-        // Custom logging for mobile debugging
-        function log(msg, isError = false) {
-            console.log(msg);
-            if (isError) {
-                errorLog.classList.remove('hidden');
-                errorLog.innerText += `\n> ${msg}`;
-            }
-        }
-
-        // --- AR INITIALIZATION ---
+        // Initialize AR
         btnStart.addEventListener('click', () => {
-            log("Initializing AR Scene...");
-            bootScreen.style.opacity = '0';
-            setTimeout(() => bootScreen.style.display = 'none', 500);
-
-            // Using A-Frame 1.3.0 which is highly compatible with AR.js 
-            arViewport.innerHTML = `
+            bootScreen.style.display = 'none';
+            
+            arContainer.innerHTML = `
                 <a-scene 
                     embedded 
                     vr-mode-ui="enabled: false"
-                    arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3; trackingMethod: best;"
+                    arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; trackingMethod: best; displayHeight: 100vh; displayWidth: 100vw;"
                     renderer="antialias: true; alpha: true; precision: medium; logarithmicDepthBuffer: true;"
                 >
-                    <a-assets>
-                        <img id="ui-img" src="https://via.placeholder.com/512x768.png?text=Target+Ready">
-                    </a-assets>
-
-                    <a-marker preset="hiro" id="marker-hiro">
+                    <a-marker preset="hiro" id="target-marker">
                         <a-plane 
                             id="ui-plane"
                             position="0 0.1 0" 
                             rotation="-90 0 0" 
                             width="2" 
-                            height="3" 
-                            material="src: #ui-img; transparent: true; opacity: 0.98; shader: flat; side: double;"
-                            animation="property: position; to: 0 0.25 0; dir: alternate; dur: 2000; loop: true; easing: easeInOutSine"
+                            height="3.2" 
+                            material="src: https://via.placeholder.com/512x800.png?text=Awaiting+UI; transparent: true; opacity: 0.95; shader: flat; side: double;"
+                            animation="property: position; to: 0 0.2 0; dir: alternate; dur: 2500; loop: true; easing: easeInOutQuad"
                         ></a-plane>
-                        <a-ring color="#3b82f6" radius-inner="1" radius-outer="1.05" rotation="-90 0 0" opacity="0.6"></a-ring>
+                        <a-ring color="#3b82f6" radius-inner="1" radius-outer="1.05" rotation="-90 0 0" opacity="0.3"></a-ring>
                     </a-marker>
-
                     <a-entity camera></a-entity>
                 </a-scene>
             `;
 
-            // Listen for marker status
             const marker = document.querySelector('a-marker');
-            marker.addEventListener('markerFound', () => { statusText.innerText = "Target Locked"; statusText.className = "text-green-400"; });
-            marker.addEventListener('markerLost', () => { statusText.innerText = "Searching..."; statusText.className = "text-yellow-400"; });
-            
-            sceneLoaded = true;
+            marker.addEventListener('markerFound', () => {
+                statusDot.className = "w-2 h-2 rounded-full bg-green-500 animate-pulse";
+                statusLabel.innerText = "Target Locked";
+            });
+            marker.addEventListener('markerLost', () => {
+                statusDot.className = "w-2 h-2 rounded-full bg-red-500";
+                statusLabel.innerText = "Searching...";
+            });
+
+            arActive = true;
         });
 
-        // --- IMAGE GENERATION ---
-        async function fetchWithBackoff(url, body, retries = 5) {
-            for (let i = 0; i < retries; i++) {
+        async function safeFetch(url, body) {
+            for (let i = 0; i < 5; i++) {
                 try {
-                    const response = await fetch(url, {
+                    const res = await fetch(url, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(body)
                     });
-                    if (response.ok) return await response.json();
-                    if (response.status === 429) {
-                        const delay = Math.pow(2, i) * 1000;
-                        await new Promise(r => setTimeout(r, delay));
-                        continue;
-                    }
-                } catch (e) { log("Request error: " + e.message, true); }
+                    if (res.ok) return await res.json();
+                    if (res.status === 429) await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
+                } catch (e) { console.error(e); }
             }
-            throw new Error("API Connection Failed");
+            throw new Error("API Connection Error");
         }
 
         btnGenerate.addEventListener('click', async () => {
-            const prompt = promptField.value.trim();
-            if (!prompt || !sceneLoaded) return;
+            const prompt = inputPrompt.value.trim();
+            if (!prompt || !arActive) return;
 
-            loadingIndicator.style.display = 'flex';
+            genOverlay.style.display = 'flex';
             
             try {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`;
                 
-                // Optimized UI prompt for Imagen 4.0
-                const refinedPrompt = `A high-fidelity, high-resolution mobile application user interface mockup for: ${prompt}. Clean, modern aesthetic, professional design system, vibrant accents, sleek typography, 2D flat design mockup, vertical layout.`;
+                const uiPrompt = `A pixel-perfect, modern mobile application user interface mockup for: ${prompt}. Minimalist aesthetic, clean vertical layout, professional UI design system, high fidelity, 2D flat design, no device frames, vertical screen aspect ratio.`;
 
-                const data = await fetchWithBackoff(url, {
-                    instances: { prompt: refinedPrompt },
+                const data = await safeFetch(url, {
+                    instances: { prompt: uiPrompt },
                     parameters: { sampleCount: 1 }
                 });
 
-                if (data.predictions && data.predictions[0].bytesBase64Encoded) {
-                    const base64Data = `data:image/png;base64,${data.predictions[0].bytesBase64Encoded}`;
-                    
-                    // Crucial: Update A-Frame material
+                if (data.predictions?.[0]?.bytesBase64Encoded) {
+                    const base64 = `data:image/png;base64,${data.predictions[0].bytesBase64Encoded}`;
                     const uiPlane = document.querySelector('#ui-plane');
                     if (uiPlane) {
-                        // We update the material directly to avoid A-Frame asset caching issues
-                        uiPlane.setAttribute('material', 'src', base64Data);
+                        uiPlane.setAttribute('material', 'src', base64);
                     }
                 }
             } catch (err) {
-                log("Generation Error: " + err.message, true);
+                console.error(err);
             } finally {
-                loadingIndicator.style.display = 'none';
+                genOverlay.style.display = 'none';
             }
         });
 
-        // Handle viewport adjustments for mobile rotation
         window.addEventListener('resize', () => {
             const scene = document.querySelector('a-scene');
             if (scene) scene.resize();
