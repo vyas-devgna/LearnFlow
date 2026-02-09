@@ -2,21 +2,23 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <!-- Critical for Mobile Chrome: Disables zooming and handles notches/safe-areas -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>AR UI Mockup Pro</title>
     
-    <!-- Stable A-Frame + AR.js -->
-    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+    <!-- A-Frame 1.2.0 (Most stable for AR.js) -->
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <!-- AR.js with Marker Tracking -->
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
         :root { 
-            --safe-top: env(safe-area-inset-top, 0px); 
-            --safe-bottom: env(safe-area-inset-bottom, 0px); 
+            --safe-top: env(safe-area-inset-top, 20px); 
+            --safe-bottom: env(safe-area-inset-bottom, 20px); 
         }
         
-        /* Force camera to fill entire background without letterboxing */
         html, body { 
             margin: 0; 
             padding: 0; 
@@ -24,243 +26,406 @@
             height: 100%; 
             overflow: hidden; 
             background-color: #000;
-            position: fixed; /* Prevent scrolling/bouncing on iOS */
+            position: fixed; /* Lock body for iOS */
         }
-        
+
+        /* UI Overlay Layer */
         #app-ui {
-            position: fixed;
-            inset: 0;
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
             z-index: 1000;
-            pointer-events: none;
+            pointer-events: none; /* Let touches pass through to canvas... */
             display: flex;
             flex-direction: column;
             justify-content: space-between;
             padding: calc(1rem + var(--safe-top)) 1rem calc(1rem + var(--safe-bottom));
         }
 
-        .interactive { pointer-events: auto; }
+        /* Enable interaction for buttons inside the non-interactive container */
+        .interactive { pointer-events: auto !important; }
 
         .glass {
-            background: rgba(15, 23, 42, 0.85);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 28px;
+            border-radius: 20px;
         }
 
+        /* Boot Screen */
         #boot-screen {
             position: fixed;
             inset: 0;
             z-index: 2000;
-            background: #020617;
+            background: #0f172a;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            text-align: center;
-            color: white;
+            transition: opacity 0.5s ease;
+        }
+
+        /* Settings Modal */
+        #settings-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 3000;
+            background: rgba(0,0,0,0.9);
+            display: none;
+            align-items: center;
+            justify-content: center;
             padding: 2rem;
         }
 
+        /* Loading Overlay */
         #gen-overlay {
             position: fixed;
             inset: 0;
             z-index: 1500;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.85);
             display: none;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             color: white;
+            backdrop-filter: blur(5px);
         }
 
-        /* AR.js Video Scaling Fixes */
-        .a-canvas { width: 100% !important; height: 100% !important; }
-        #arjs-video { object-fit: cover !important; width: 100vw !important; height: 100vh !important; }
+        /* Fixes for AR.js video sizing */
+        #arjs-video {
+            width: 100vw !important;
+            height: 100vh !important;
+            object-fit: cover !important;
+            margin: 0 !important;
+        }
 
-        .loading-pulse {
-            width: 60px; height: 60px;
-            border-radius: 50%;
-            background: #3b82f6;
-            animation: pulse 1.5s infinite ease-in-out;
+        /* Animations */
+        .pulse-ring {
+            animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
         }
-        @keyframes pulse {
-            0% { transform: scale(0.8); opacity: 0.5; }
-            50% { transform: scale(1.1); opacity: 1; }
-            100% { transform: scale(0.8); opacity: 0.5; }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.33); opacity: 1; }
+            80%, 100% { transform: scale(1.5); opacity: 0; }
         }
+
+        .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
-    <!-- Start / Camera Permission Screen -->
-    <div id="boot-screen">
-        <div class="mb-8">
-            <div class="w-24 h-24 bg-blue-600/20 rounded-[2.5rem] flex items-center justify-center mx-auto mb-6 border border-blue-500/30">
-                <svg class="w-12 h-12 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                </svg>
+    <!-- SETTINGS MODAL (For API Key) -->
+    <div id="settings-modal" class="interactive">
+        <div class="glass w-full max-w-sm p-6 transform transition-all scale-100">
+            <h3 class="text-xl font-bold text-white mb-2">Configuration</h3>
+            <p class="text-slate-400 text-sm mb-4">Enter your Gemini API Key to enable image generation.</p>
+            
+            <label class="text-xs font-bold text-blue-400 uppercase tracking-wider mb-1 block">API Key</label>
+            <input type="password" id="api-key-input" placeholder="AIza..." class="w-full bg-slate-800/50 border border-slate-600 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 mb-6 font-mono">
+            
+            <div class="flex gap-3">
+                <button id="btn-save-key" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl">Save & Close</button>
+                <button onclick="document.getElementById('settings-modal').style.display='none'" class="px-4 py-3 text-slate-400 hover:text-white font-bold">Cancel</button>
             </div>
-            <h1 class="text-3xl font-bold text-white mb-3">AR UI Explorer</h1>
-            <p class="text-slate-400 text-sm max-w-xs mx-auto leading-relaxed">Place your generated UI mockups onto a physical tracker in real-time.</p>
+            <p class="text-[10px] text-slate-500 mt-4 text-center">Key is stored locally in your browser.</p>
+        </div>
+    </div>
+
+    <!-- BOOT SCREEN -->
+    <div id="boot-screen">
+        <div class="relative w-24 h-24 mb-8">
+            <div class="absolute inset-0 bg-blue-500/30 rounded-full pulse-ring"></div>
+            <div class="relative bg-slate-900 border border-slate-700 w-24 h-24 rounded-full flex items-center justify-center shadow-2xl">
+                <svg class="w-10 h-10 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+            </div>
         </div>
         
-        <div class="flex flex-col gap-3 w-full max-w-xs">
-            <button id="btn-start" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-8 rounded-2xl transition-all active:scale-95 shadow-2xl shadow-blue-600/20">
-                Launch AR Camera
+        <h1 class="text-2xl font-bold text-white mb-2 tracking-tight">AR UI Mockup</h1>
+        <p class="text-slate-400 text-sm mb-8 px-8 text-center">Visualize AI-generated interfaces on physical markers.</p>
+        
+        <div class="flex flex-col gap-3 w-64">
+            <button id="btn-start" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-blue-900/50 transition-transform active:scale-95">
+                Start Camera
             </button>
-            <a href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png" target="_blank" class="text-blue-400 text-xs font-semibold py-2">
-                Download Hiro Marker Link
+            <button id="btn-settings-boot" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium py-3 px-6 rounded-xl transition-colors">
+                Settings
+            </button>
+            <a href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png" target="_blank" class="text-blue-400/80 text-xs font-medium text-center py-2 hover:text-blue-300">
+                Get Hiro Marker
             </a>
         </div>
-        <p id="error-display" class="mt-4 text-[10px] text-red-500 font-mono hidden"></p>
     </div>
 
-    <!-- Generation Loading -->
+    <!-- LOADING OVERLAY -->
     <div id="gen-overlay">
-        <div class="loading-pulse mb-6"></div>
-        <p class="font-bold text-xl">Imagining UI...</p>
-        <p class="text-slate-400 text-xs mt-2">Gemini is rendering your concept</p>
+        <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full spin mb-4"></div>
+        <p class="font-bold text-lg tracking-wide">Generating UI...</p>
+        <p class="text-slate-400 text-xs mt-1">This takes about 5-10 seconds</p>
     </div>
 
-    <!-- Main AR Container -->
-    <div id="ar-container"></div>
+    <!-- AR SCENE -->
+    <!-- embedded: integrates with DOM, vr-mode-ui: disables Cardboard button -->
+    <a-scene 
+        embedded 
+        vr-mode-ui="enabled: false"
+        arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono; videoTexture: true;"
+        renderer="antialias: true; alpha: true; precision: medium;"
+        id="scene"
+        class="absolute inset-0 z-0"
+    >
+        <!-- Assets: Manage images here for better caching -->
+        <a-assets>
+            <img id="placeholder-img" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=">
+        </a-assets>
 
-    <!-- Interface -->
+        <!-- The Marker -->
+        <a-marker preset="hiro" id="target-marker" smooth="true" smoothCount="10" smoothTolerance="0.01" smoothThreshold="5">
+            
+            <!-- The UI Plane -->
+            <!-- Rotation -90 makes it lie flat on the marker. Position y=0.1 floats it slightly above -->
+            <a-plane 
+                id="ui-plane"
+                position="0 0.1 0" 
+                rotation="-90 0 0" 
+                width="1.8" 
+                height="3.2" 
+                color="#1e293b"
+                material="shader: flat; transparent: true; opacity: 1;"
+            >
+                <!-- Loading/Scanning Animation on the plane itself -->
+                <a-ring 
+                    id="scan-ring"
+                    color="#3b82f6" 
+                    radius-inner="0.3" 
+                    radius-outer="0.32" 
+                    animation="property: scale; from: 1 1 1; to: 4 4 4; dir: alternate; dur: 2000; loop: true"
+                    visible="true"
+                ></a-ring>
+            </a-plane>
+
+            <!-- Glow Effect under the plane -->
+            <a-plane position="0 0 0" rotation="-90 0 0" width="2.2" height="3.6" color="#3b82f6" material="shader: flat; opacity: 0.2; transparent: true"></a-plane>
+            
+        </a-marker>
+        
+        <a-entity camera></a-entity>
+    </a-scene>
+
+    <!-- APP INTERFACE -->
     <div id="app-ui">
+        <!-- Top Bar -->
         <div class="flex justify-between items-start">
-            <div class="glass px-4 py-2 flex items-center gap-2">
-                <div id="status-dot" class="w-2 h-2 rounded-full bg-red-500"></div>
-                <span id="status-label" class="text-[10px] font-bold text-white uppercase tracking-tighter">Searching...</span>
+            <div class="glass px-3 py-1.5 flex items-center gap-2">
+                <div id="status-dot" class="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]"></div>
+                <span id="status-label" class="text-[10px] font-bold text-white uppercase tracking-wider">Scanning</span>
             </div>
-            <button onclick="window.open('https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png','_blank')" class="interactive glass p-2 text-white/70 hover:text-white">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+            
+            <button id="btn-settings-ui" class="interactive glass p-2.5 text-white/80 hover:text-white hover:bg-white/10 transition-all active:scale-95">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
             </button>
         </div>
 
-        <div class="interactive glass p-6 mb-4 shadow-3xl">
-            <div class="flex items-center gap-2 mb-4">
-                <div class="w-1 h-4 bg-blue-500 rounded-full"></div>
-                <h2 class="text-sm font-bold text-white uppercase tracking-widest">Mockup Engine</h2>
+        <!-- Bottom Controls -->
+        <div class="interactive glass p-4 shadow-2xl">
+            <div class="flex items-center gap-2 mb-3">
+                <div class="w-1 h-3 bg-blue-500 rounded-full"></div>
+                <h2 class="text-xs font-bold text-slate-300 uppercase tracking-widest">Mockup Engine</h2>
             </div>
             
-            <textarea 
-                id="input-prompt"
-                placeholder="Describe your app screen (e.g. Modern Tesla Control Panel)..."
-                class="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none mb-4"
-                rows="2"
-            ></textarea>
-            
-            <button id="btn-generate" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-3">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                <span>Generate Mockup</span>
-            </button>
+            <div class="flex gap-2">
+                <input 
+                    type="text" 
+                    id="input-prompt"
+                    placeholder="e.g. Cyberpunk Music Player..."
+                    class="flex-1 bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-slate-900 transition-all"
+                    autocomplete="off"
+                >
+                <button id="btn-generate" class="bg-blue-600 hover:bg-blue-500 text-white p-3 rounded-xl transition-all active:scale-95 flex-shrink-0">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                </button>
+            </div>
         </div>
     </div>
 
     <script>
-        const apiKey = "";
-        const btnStart = document.getElementById('btn-start');
-        const btnGenerate = document.getElementById('btn-generate');
-        const inputPrompt = document.getElementById('input-prompt');
-        const arContainer = document.getElementById('ar-container');
-        const bootScreen = document.getElementById('boot-screen');
-        const genOverlay = document.getElementById('gen-overlay');
-        const statusDot = document.getElementById('status-dot');
-        const statusLabel = document.getElementById('status-label');
+        // --- Configuration & State ---
+        const LS_KEY = 'gemini_ar_api_key';
+        let apiKey = localStorage.getItem(LS_KEY) || '';
+        
+        // --- DOM Elements ---
+        const els = {
+            boot: document.getElementById('boot-screen'),
+            settings: document.getElementById('settings-modal'),
+            overlay: document.getElementById('gen-overlay'),
+            apiKeyInput: document.getElementById('api-key-input'),
+            prompt: document.getElementById('input-prompt'),
+            uiPlane: document.getElementById('ui-plane'),
+            scanRing: document.getElementById('scan-ring'),
+            statusDot: document.getElementById('status-dot'),
+            statusLabel: document.getElementById('status-label')
+        };
 
-        let arActive = false;
+        // --- Initialization ---
+        
+        // Pre-fill API Key if saved
+        if (apiKey) els.apiKeyInput.value = apiKey;
 
-        // Initialize AR
-        btnStart.addEventListener('click', () => {
-            bootScreen.style.display = 'none';
-            
-            arContainer.innerHTML = `
-                <a-scene 
-                    embedded 
-                    vr-mode-ui="enabled: false"
-                    arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; trackingMethod: best; displayHeight: 100vh; displayWidth: 100vw;"
-                    renderer="antialias: true; alpha: true; precision: medium; logarithmicDepthBuffer: true;"
-                >
-                    <a-marker preset="hiro" id="target-marker">
-                        <a-plane 
-                            id="ui-plane"
-                            position="0 0.1 0" 
-                            rotation="-90 0 0" 
-                            width="2" 
-                            height="3.2" 
-                            material="src: https://via.placeholder.com/512x800.png?text=Awaiting+UI; transparent: true; opacity: 0.95; shader: flat; side: double;"
-                            animation="property: position; to: 0 0.2 0; dir: alternate; dur: 2500; loop: true; easing: easeInOutQuad"
-                        ></a-plane>
-                        <a-ring color="#3b82f6" radius-inner="1" radius-outer="1.05" rotation="-90 0 0" opacity="0.3"></a-ring>
-                    </a-marker>
-                    <a-entity camera></a-entity>
-                </a-scene>
-            `;
+        // Button Listeners
+        document.getElementById('btn-start').addEventListener('click', startExperience);
+        document.getElementById('btn-settings-boot').addEventListener('click', () => showSettings(true));
+        document.getElementById('btn-settings-ui').addEventListener('click', () => showSettings(true));
+        document.getElementById('btn-save-key').addEventListener('click', saveSettings);
+        document.getElementById('btn-generate').addEventListener('click', generateUI);
 
-            const marker = document.querySelector('a-marker');
-            marker.addEventListener('markerFound', () => {
-                statusDot.className = "w-2 h-2 rounded-full bg-green-500 animate-pulse";
-                statusLabel.innerText = "Target Locked";
-            });
-            marker.addEventListener('markerLost', () => {
-                statusDot.className = "w-2 h-2 rounded-full bg-red-500";
-                statusLabel.innerText = "Searching...";
-            });
-
-            arActive = true;
+        // Marker Tracking Events
+        const marker = document.querySelector('a-marker');
+        marker.addEventListener('markerFound', () => {
+            els.statusDot.className = "w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]";
+            els.statusLabel.innerText = "Tracking";
+            els.statusLabel.classList.add('text-green-400');
+            els.statusLabel.classList.remove('text-white');
+        });
+        marker.addEventListener('markerLost', () => {
+            els.statusDot.className = "w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]";
+            els.statusLabel.innerText = "Searching";
+            els.statusLabel.classList.remove('text-green-400');
+            els.statusLabel.classList.add('text-white');
         });
 
-        async function safeFetch(url, body) {
-            for (let i = 0; i < 5; i++) {
+        // --- Core Functions ---
+
+        function startExperience() {
+            // Check for API key before starting
+            if (!apiKey) {
+                alert("Please enter a Google Gemini API Key in Settings first.");
+                showSettings(true);
+                return;
+            }
+
+            // Hide boot screen
+            els.boot.style.opacity = '0';
+            setTimeout(() => els.boot.style.display = 'none', 500);
+            
+            // Check for Camera Permissions (Mobile Chrome fix)
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+                    .then(() => {
+                        console.log("Camera access granted");
+                    })
+                    .catch(err => {
+                        console.error("Camera access denied:", err);
+                        alert("Camera access is required for AR. Please check your browser permissions.");
+                    });
+            }
+        }
+
+        function showSettings(show) {
+            els.settings.style.display = show ? 'flex' : 'none';
+        }
+
+        function saveSettings() {
+            const val = els.apiKeyInput.value.trim();
+            if (val) {
+                apiKey = val;
+                localStorage.setItem(LS_KEY, apiKey);
+                showSettings(false);
+            } else {
+                alert("Please enter a valid API key.");
+            }
+        }
+
+        async function generateUI() {
+            const prompt = els.prompt.value.trim();
+            if (!prompt) return;
+            if (!apiKey) {
+                alert("API Key missing. Check settings.");
+                return;
+            }
+
+            // UI Feedback
+            els.prompt.blur(); // Close mobile keyboard
+            els.overlay.style.display = 'flex';
+            
+            try {
+                // Construct prompts for better UI generation
+                const enhancedPrompt = `High fidelity mobile app UI design for: ${prompt}. 
+                Vertical layout, dark mode aesthetic, modern clean lines, flat design, 
+                high contrast, professional Dribbble style, no device bezel, 
+                vertical aspect ratio (9:16).`;
+
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`;
+                
+                // Exponential backoff fetcher
+                const data = await fetchWithRetry(url, {
+                    instances: [{ prompt: enhancedPrompt }],
+                    parameters: { sampleCount: 1, aspectRatio: "9:16" }
+                });
+
+                if (data.predictions && data.predictions[0] && data.predictions[0].bytesBase64Encoded) {
+                    const base64 = data.predictions[0].bytesBase64Encoded;
+                    updateARTexture(base64);
+                } else {
+                    throw new Error("No image data received");
+                }
+
+            } catch (err) {
+                console.error(err);
+                alert("Generation failed: " + err.message);
+            } finally {
+                els.overlay.style.display = 'none';
+            }
+        }
+
+        function updateARTexture(base64Data) {
+            // 1. Convert Base64 to Blob (Better memory management for A-Frame)
+            const byteCharacters = atob(base64Data);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], {type: 'image/png'});
+            const blobUrl = URL.createObjectURL(blob);
+
+            // 2. Hide scanning animation
+            els.scanRing.setAttribute('visible', 'false');
+
+            // 3. Update the Plane
+            // We set the src attribute and force a material update
+            els.uiPlane.setAttribute('src', blobUrl);
+            els.uiPlane.setAttribute('color', '#FFFFFF'); // Reset tint
+            
+            // 4. Force A-Frame to refresh the texture (Mobile Safari/Chrome fix)
+            const material = els.uiPlane.getObject3D('mesh').material;
+            if (material.map) material.map.needsUpdate = true;
+        }
+
+        // Retry Logic for API stability
+        async function fetchWithRetry(url, body, retries = 3) {
+            for (let i = 0; i < retries; i++) {
                 try {
                     const res = await fetch(url, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(body)
                     });
-                    if (res.ok) return await res.json();
-                    if (res.status === 429) await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
-                } catch (e) { console.error(e); }
-            }
-            throw new Error("API Connection Error");
-        }
-
-        btnGenerate.addEventListener('click', async () => {
-            const prompt = inputPrompt.value.trim();
-            if (!prompt || !arActive) return;
-
-            genOverlay.style.display = 'flex';
-            
-            try {
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`;
-                
-                const uiPrompt = `A pixel-perfect, modern mobile application user interface mockup for: ${prompt}. Minimalist aesthetic, clean vertical layout, professional UI design system, high fidelity, 2D flat design, no device frames, vertical screen aspect ratio.`;
-
-                const data = await safeFetch(url, {
-                    instances: { prompt: uiPrompt },
-                    parameters: { sampleCount: 1 }
-                });
-
-                if (data.predictions?.[0]?.bytesBase64Encoded) {
-                    const base64 = `data:image/png;base64,${data.predictions[0].bytesBase64Encoded}`;
-                    const uiPlane = document.querySelector('#ui-plane');
-                    if (uiPlane) {
-                        uiPlane.setAttribute('material', 'src', base64);
+                    
+                    if (!res.ok) {
+                        const errText = await res.text();
+                        if (res.status === 429) {
+                            // Rate limit wait
+                            await new Promise(r => setTimeout(r, 2000 * (i + 1)));
+                            continue;
+                        }
+                        throw new Error(`API Error ${res.status}: ${errText}`);
                     }
+                    return await res.json();
+                } catch (e) {
+                    if (i === retries - 1) throw e;
                 }
-            } catch (err) {
-                console.error(err);
-            } finally {
-                genOverlay.style.display = 'none';
             }
-        });
-
-        window.addEventListener('resize', () => {
-            const scene = document.querySelector('a-scene');
-            if (scene) scene.resize();
-        });
+        }
     </script>
 </body>
 </html>
+
