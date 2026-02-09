@@ -2,481 +2,264 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>AR HTML Mockup Pro</title>
-    
-    <!-- A-Frame 1.2.0 -->
-    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    <!-- AR.js -->
-    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
-    <!-- HTML2Canvas -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <!-- Tailwind -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Digital Hand Skeleton</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Font Awesome for Generated UIs -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
-
+    <!-- MediaPipe Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    
     <style>
-        :root { 
-            --safe-top: env(safe-area-inset-top, 20px); 
-            --safe-bottom: env(safe-area-inset-bottom, 20px); 
+        /* Custom neon glow effects */
+        .neon-text {
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.7);
         }
-        
-        body { 
-            margin: 0; overflow: hidden; background-color: #000; font-family: 'Inter', sans-serif;
-            position: fixed; width: 100%; height: 100%;
+        canvas {
+            transform: scaleX(-1); /* Mirror effect for selfie mode */
         }
-
-        /* --- AR UI Overlay --- */
-        #app-ui {
-            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-            z-index: 1000; pointer-events: none;
-            display: flex; flex-direction: column; justify-content: space-between;
-            padding: calc(1rem + var(--safe-top)) 1rem calc(1rem + var(--safe-bottom));
+        /* Loading spinner */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #06b6d4;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
         }
-        .interactive { pointer-events: auto !important; }
-
-        .glass {
-            background: rgba(15, 23, 42, 0.85);
-            backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 16px;
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-        }
-
-        /* --- Settings Modal --- */
-        #settings-modal {
-            position: fixed; inset: 0; z-index: 3000;
-            background: rgba(0,0,0,0.95);
-            display: none; flex-direction: column; align-items: center; justify-content: flex-start;
-            padding-top: calc(2rem + var(--safe-top));
-            overflow-y: auto;
-        }
-
-        /* --- Console Logs --- */
-        #console-log {
-            font-family: 'Courier New', monospace;
-            font-size: 10px;
-            color: #00ff00;
-            background: rgba(0,0,0,0.8);
-            width: 100%;
-            max-width: 90%;
-            height: 150px;
-            overflow-y: auto;
-            border: 1px solid #333;
-            border-radius: 8px;
-            padding: 8px;
-            margin-top: 10px;
-            white-space: pre-wrap;
-        }
-
-        /* --- Loading Spinner --- */
-        #loader {
-            position: fixed; inset: 0;
-            z-index: 1500; display: none; flex-direction: column; align-items: center; justify-content: center;
-            background: rgba(0,0,0,0.85); backdrop-filter: blur(5px);
-        }
-        .spinner {
-            width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.1);
-            border-radius: 50%; border-top-color: #3b82f6;
-            animation: spin 0.8s ease-in-out infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* --- Off-screen Rendering Stage --- */
-        #render-stage {
-            position: fixed;
-            top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 375px; height: 667px;
-            background: white;
-            overflow: hidden;
-            z-index: 2000; /* Above everything when visible */
-            display: none; /* Toggled via JS */
-            box-shadow: 0 0 50px rgba(0,0,0,0.5);
-            border: 2px solid #3b82f6;
-        }
-        
-        #render-stage.hidden-mode {
-            display: block;
-            visibility: hidden; /* layout active but invisible */
-            z-index: -1;
-            transform: none;
-            top: 0; left: -9999px;
-        }
-
-        /* UI Helpers */
-        .btn-primary {
-            background: linear-gradient(135deg, #2563eb, #1d4ed8);
-            color: white; font-weight: 700; padding: 12px 20px;
-            border-radius: 12px; transition: transform 0.1s;
-        }
-        .btn-primary:active { transform: scale(0.96); }
-        
-        .status-badge {
-            font-size: 10px; font-weight: 800; text-transform: uppercase;
-            padding: 4px 8px; border-radius: 99px; color: white;
-            display: flex; align-items: center; gap: 6px;
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
-<body>
+<body class="bg-black text-white overflow-hidden w-full h-screen relative font-mono">
 
-    <!-- SETTINGS / DEBUG MODAL -->
-    <div id="settings-modal" class="interactive">
-        <div class="glass w-full max-w-sm p-6 mx-4 mb-4">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-white font-bold text-lg">System Config</h3>
-                <button onclick="toggleSettings(false)" class="text-slate-400 hover:text-white">
-                    <i class="fa-solid fa-xmark fa-lg"></i>
-                </button>
-            </div>
-            
-            <label class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2 block">Gemini API Key</label>
-            <input type="password" id="api-key" placeholder="AIza..." class="w-full bg-slate-900/50 border border-slate-700 rounded-lg p-3 text-white text-sm mb-4 outline-none focus:border-blue-500 font-mono">
-            
-            <div class="flex gap-2 mb-6">
-                <button onclick="saveKey()" class="flex-1 btn-primary text-sm">Save & Connect</button>
-                <button onclick="clearLogs()" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-lg text-sm font-bold">Clear Logs</button>
-            </div>
-
-            <label class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2 block">System Logs</label>
-            <div id="console-log">Logs will appear here...</div>
-        </div>
-    </div>
-
-    <!-- PROGRESS OVERLAY -->
-    <div id="loader">
-        <div class="spinner mb-6"></div>
-        <h2 class="text-white font-bold text-xl mb-2 tracking-wide">PROCESSING</h2>
-        <p id="progress-text" class="text-blue-400 text-xs font-mono">Initializing...</p>
-        <button onclick="cancelGeneration()" class="mt-8 text-slate-500 text-sm hover:text-white underline interactive">Cancel</button>
-    </div>
-
-    <!-- RENDER STAGE (The HTML Container) -->
-    <div id="render-stage" class="hidden-mode">
-        <!-- Default Placeholder -->
-        <div class="flex flex-col items-center justify-center h-full bg-slate-900 text-white font-sans p-8 text-center">
-            <div class="text-6xl mb-4">✨</div>
-            <h1 class="text-2xl font-bold mb-2">AR Canvas</h1>
-            <p class="text-slate-400">Enter a prompt to generate a new UI.</p>
-        </div>
-    </div>
-
-    <!-- AR SCENE -->
-    <a-scene 
-        embedded 
-        vr-mode-ui="enabled: false"
-        arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono; videoTexture: true; maxDetectionRate: 60;"
-        renderer="antialias: true; alpha: true; precision: medium; logarithmicDepthBuffer: true;"
-        id="scene"
-    >
-        <a-assets>
-            <canvas id="ui-canvas" width="375" height="667"></canvas>
-            <img id="placeholder-tex" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=">
-        </a-assets>
-
-        <a-marker preset="hiro" smooth="true" smoothCount="10" smoothTolerance="0.01" smoothThreshold="5">
-            <a-plane 
-                id="ui-plane"
-                position="0 0.1 0" 
-                rotation="-90 0 0" 
-                width="1.8" 
-                height="3.2" 
-                material="src: #ui-canvas; transparent: true; opacity: 1; shader: flat; side: double;"
-            ></a-plane>
-            
-            <!-- Tracking Indicator Ring -->
-            <a-ring color="#00ff00" radius-inner="1.1" radius-outer="1.15" rotation="-90 0 0" opacity="0.5"></a-ring>
-        </a-marker>
+    <!-- Container for Video/Canvas -->
+    <div class="relative w-full h-full flex justify-center items-center bg-gray-900">
+        <!-- Hidden video element for raw input -->
+        <video id="input_video" class="hidden" playsinline></video>
         
-        <a-entity camera></a-entity>
-    </a-scene>
+        <!-- Canvas for rendering output -->
+        <canvas id="output_canvas" class="absolute top-0 left-0 w-full h-full object-cover"></canvas>
+        
+        <!-- Loading Overlay -->
+        <div id="loading" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/90 transition-opacity duration-500">
+            <div class="loader mb-4"></div>
+            <p class="text-cyan-400 tracking-widest text-sm animate-pulse">INITIALIZING NEURAL NET</p>
+            <p class="text-gray-500 text-xs mt-2">Please allow camera access</p>
+        </div>
+    </div>
 
-    <!-- HUD -->
-    <div id="app-ui">
-        <!-- Header -->
-        <div class="flex justify-between items-start">
-            <div class="glass px-4 py-2 flex items-center gap-3">
-                <div id="status-dot" class="w-2.5 h-2.5 rounded-full bg-red-500 transition-colors duration-300"></div>
-                <div class="flex flex-col">
-                    <span id="status-label" class="text-[10px] font-bold text-white uppercase leading-none mb-0.5">Searching</span>
-                    <span class="text-[8px] text-slate-400 leading-none">Hiro Marker</span>
-                </div>
-            </div>
-            
-            <div class="flex gap-2">
-                <button onclick="togglePreview()" id="btn-preview" class="interactive glass w-10 h-10 flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 active:scale-95 transition-all">
-                    <i class="fa-regular fa-eye"></i>
-                </button>
-                <button onclick="toggleSettings(true)" class="interactive glass w-10 h-10 flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 active:scale-95 transition-all">
-                    <i class="fa-solid fa-gear"></i>
-                </button>
+    <!-- UI Overlay -->
+    <div class="absolute top-0 left-0 w-full p-4 z-10 flex justify-between items-start pointer-events-none">
+        <div>
+            <h1 class="text-cyan-400 font-bold text-lg neon-text tracking-tighter">HAND_SKELETON<span class="text-xs align-top opacity-70">v1.0</span></h1>
+            <div class="flex items-center gap-2 mt-1">
+                <div id="fps_meter" class="text-xs text-pink-500 font-bold">00 FPS</div>
+                <div id="hand_count" class="text-xs text-emerald-400">WAITING...</div>
             </div>
         </div>
+    </div>
 
-        <!-- Input Area -->
-        <div class="interactive glass p-4 shadow-2xl transition-transform duration-300 translate-y-0" id="input-panel">
-            <div class="flex items-center justify-between mb-3">
-                <div class="flex items-center gap-2">
-                    <i class="fa-solid fa-wand-magic-sparkles text-blue-400 text-xs"></i>
-                    <span class="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Gemini UI Engine</span>
-                </div>
-                <span class="text-[9px] text-slate-500 font-mono">v2.5-Flash</span>
-            </div>
-            
-            <div class="flex gap-2">
-                <input id="prompt" type="text" placeholder="e.g. Cyberpunk Crypto Wallet..." class="flex-1 bg-slate-900/60 border border-slate-700 text-white text-sm rounded-xl px-4 py-3 outline-none focus:border-blue-500 focus:bg-slate-900 transition-all placeholder-slate-500">
-                <button id="btn-gen" class="btn-primary shadow-lg shadow-blue-900/40 w-14 flex items-center justify-center">
-                    <i class="fa-solid fa-arrow-right"></i>
-                </button>
-            </div>
-        </div>
+    <!-- Controls -->
+    <div class="absolute bottom-8 left-0 w-full flex justify-center gap-4 z-20 pointer-events-auto px-4">
+        <button id="toggle_cam_btn" class="bg-gray-800/80 backdrop-blur border border-cyan-500/50 text-cyan-400 px-6 py-3 rounded-full text-sm font-bold active:scale-95 transition-transform shadow-[0_0_15px_rgba(6,182,212,0.3)] hover:bg-gray-700">
+            TOGGLE FEED
+        </button>
+        <button id="toggle_conn_btn" class="bg-gray-800/80 backdrop-blur border border-pink-500/50 text-pink-400 px-6 py-3 rounded-full text-sm font-bold active:scale-95 transition-transform shadow-[0_0_15px_rgba(236,72,153,0.3)] hover:bg-gray-700">
+            WIREFRAME
+        </button>
     </div>
 
     <script>
-        // --- Global State ---
-        const state = {
-            apiKey: localStorage.getItem('gemini_key_v2') || '',
-            isPreviewOpen: false,
-            isGenerating: false,
-            canvasCtx: document.getElementById('ui-canvas').getContext('2d')
-        };
-
-        // --- Logger System ---
-        function log(msg, type = 'info') {
-            const el = document.getElementById('console-log');
-            const time = new Date().toLocaleTimeString().split(' ')[0];
-            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
-            const line = `[${time}] ${prefix} ${msg}\n`;
-            el.innerText += line;
-            el.scrollTop = el.scrollHeight;
-            console.log(msg); // Also log to browser console
-        }
+        const videoElement = document.getElementById('input_video');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const loadingElement = document.getElementById('loading');
+        const handCountElement = document.getElementById('hand_count');
+        const fpsMeter = document.getElementById('fps_meter');
         
-        function clearLogs() {
-            document.getElementById('console-log').innerText = '';
-            log('Logs cleared.');
+        const toggleCamBtn = document.getElementById('toggle_cam_btn');
+        const toggleConnBtn = document.getElementById('toggle_conn_btn');
+
+        // State
+        let showCameraFeed = true;
+        let showConnections = true;
+        let lastFrameTime = 0;
+        let isLoaded = false;
+
+        // FPS Calculation
+        function updateFPS() {
+            const now = performance.now();
+            const delta = now - lastFrameTime;
+            if (delta >= 1000) { // Update every second roughly
+                const fps = (1000 / (now - lastFrameTime)).toFixed(0); 
+                // Simple easing for display
+            }
+            lastFrameTime = now;
         }
 
-        // --- Initialization ---
-        window.addEventListener('load', () => {
-            log('App Loaded. Initializing AR system...');
-            
-            if(!state.apiKey) {
-                log('No API Key found. Opening settings.', 'error');
-                toggleSettings(true);
-            } else {
-                log('API Key found locally.', 'success');
+        function onResults(results) {
+            if (!isLoaded) {
+                isLoaded = true;
+                loadingElement.classList.add('opacity-0');
+                setTimeout(() => loadingElement.style.display = 'none', 500);
             }
 
-            // Init Canvas with placeholder
-            drawPlaceholderCanvas();
+            // Update stats
+            const fps = Math.round(1000 / (performance.now() - lastFrameTime));
+            lastFrameTime = performance.now();
+            fpsMeter.innerText = `${fps} FPS`;
 
-            // Permissions Check
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                log('Camera API available.');
+            // Adjust canvas size to match display size for crisp rendering
+            canvasElement.width = canvasElement.clientWidth;
+            canvasElement.height = canvasElement.clientHeight;
+
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            
+            // Draw Camera Feed
+            if (showCameraFeed) {
+                canvasCtx.drawImage(
+                    results.image, 0, 0, canvasElement.width, canvasElement.height
+                );
+                // Darken the video slightly to make the skeleton pop
+                canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+                canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
             } else {
-                log('Camera API unavailable (Check HTTPS/Mobile)', 'error');
+                // Black background
+                canvasCtx.fillStyle = '#050505';
+                canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+                
+                // Draw grid lines for "digital" feel in background
+                drawGrid(canvasCtx, canvasElement.width, canvasElement.height);
+            }
+
+            // Handle detections
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                handCountElement.innerText = `${results.multiHandLandmarks.length} HAND(S) DETECTED`;
+                handCountElement.className = "text-xs text-emerald-400 font-bold neon-text";
+
+                for (const landmarks of results.multiHandLandmarks) {
+                    // Draw Connections (Bones)
+                    if (showConnections) {
+                        drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {
+                            color: '#06b6d4', // Cyan
+                            lineWidth: 4
+                        });
+                        // Add an inner glow line
+                        drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {
+                            color: '#ffffff',
+                            lineWidth: 1
+                        });
+                    }
+
+                    // Draw Landmarks (Joints)
+                    drawLandmarks(canvasCtx, landmarks, {
+                        color: '#ec4899', // Pink
+                        fillColor: '#000000',
+                        lineWidth: 2,
+                        radius: 4
+                    });
+                }
+            } else {
+                handCountElement.innerText = "SEARCHING...";
+                handCountElement.className = "text-xs text-yellow-500 animate-pulse";
+            }
+            canvasCtx.restore();
+        }
+
+        // Helper to draw a retro grid
+        function drawGrid(ctx, w, h) {
+            ctx.strokeStyle = 'rgba(6, 182, 212, 0.1)';
+            ctx.lineWidth = 1;
+            const step = 50;
+            
+            for (let x = 0; x < w; x += step) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, h);
+                ctx.stroke();
+            }
+            for (let y = 0; y < h; y += step) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+                ctx.stroke();
+            }
+        }
+
+        // Setup MediaPipe Hands
+        const hands = new Hands({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        }});
+
+        hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 1, // 0 is faster, 1 is more accurate. 1 works on most modern phones.
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        hands.onResults(onResults);
+
+        // Setup Camera
+        // We use the Camera Utils library which handles the loop and frame timing
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({image: videoElement});
+            },
+            width: 1280,
+            height: 720
+        });
+        
+        // Start Camera
+        camera.start()
+            .then(() => {
+                console.log("Camera started");
+            })
+            .catch(err => {
+                console.error("Camera error:", err);
+                loadingElement.innerHTML = `<p class="text-red-500 text-center px-4">Error accessing camera.<br>Please ensure permissions are granted.</p>`;
+            });
+
+        // Button Listeners
+        toggleCamBtn.addEventListener('click', () => {
+            showCameraFeed = !showCameraFeed;
+            toggleCamBtn.innerText = showCameraFeed ? "HIDE FEED" : "SHOW FEED";
+            toggleCamBtn.classList.toggle('border-cyan-500/50');
+            toggleCamBtn.classList.toggle('border-gray-600');
+        });
+
+        toggleConnBtn.addEventListener('click', () => {
+            showConnections = !showConnections;
+            // When we toggle connections off, we might just show dots, 
+            // but effectively we might want to toggle styles. 
+            // For now, let's make it toggle "Wireframe" vs "Points only" visually?
+            // Or maybe just toggle the style. Let's keep it simple.
+            // Actually, let's make this button toggle the "Digital Grid" vs "Plain Black" when feed is off?
+            // No, user request was "digital skeleton".
+            // Let's make this button toggle Skeleton Style.
+            
+            // Re-purposing to Toggle "Full Skeleton" vs "Joints Only"
+            if (showConnections) {
+                toggleConnBtn.innerText = "JOINTS ONLY";
+                toggleConnBtn.classList.replace('text-pink-400', 'text-gray-400');
+            } else {
+                toggleConnBtn.innerText = "WIREFRAME";
+                toggleConnBtn.classList.replace('text-gray-400', 'text-pink-400');
             }
         });
 
-        // --- AR Events ---
-        const marker = document.querySelector('a-marker');
-        marker.addEventListener('markerFound', () => {
-            document.getElementById('status-dot').className = "w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_10px_#22c55e]";
-            document.getElementById('status-label').innerText = "LOCKED";
-            document.getElementById('status-label').className = "text-[10px] font-bold text-green-400 uppercase leading-none mb-0.5";
-            log('Hiro Marker detected.');
+        // Handle Resize
+        window.addEventListener('resize', () => {
+            canvasElement.width = window.innerWidth;
+            canvasElement.height = window.innerHeight;
         });
-        marker.addEventListener('markerLost', () => {
-            document.getElementById('status-dot').className = "w-2.5 h-2.5 rounded-full bg-red-500";
-            document.getElementById('status-label').innerText = "SEARCHING";
-            document.getElementById('status-label').className = "text-[10px] font-bold text-white uppercase leading-none mb-0.5";
-        });
-
-        // --- UI Interactions ---
-        function toggleSettings(show) {
-            document.getElementById('settings-modal').style.display = show ? 'flex' : 'none';
-        }
-
-        function saveKey() {
-            const input = document.getElementById('api-key').value.trim();
-            if(input.length > 10) {
-                state.apiKey = input;
-                localStorage.setItem('gemini_key_v2', state.apiKey);
-                log('API Key Saved.', 'success');
-                toggleSettings(false);
-            } else {
-                alert('Please enter a valid API Key.');
-            }
-        }
-
-        function togglePreview() {
-            const stage = document.getElementById('render-stage');
-            state.isPreviewOpen = !state.isPreviewOpen;
-            
-            if(state.isPreviewOpen) {
-                stage.classList.remove('hidden-mode');
-                document.getElementById('btn-preview').classList.add('bg-blue-600', 'text-white');
-                document.getElementById('btn-preview').classList.remove('glass');
-                log('Opened 2D Preview Mode');
-            } else {
-                stage.classList.add('hidden-mode');
-                document.getElementById('btn-preview').classList.remove('bg-blue-600', 'text-white');
-                document.getElementById('btn-preview').classList.add('glass');
-                log('Closed 2D Preview Mode');
-            }
-        }
-
-        function setProgress(msg) {
-            document.getElementById('progress-text').innerText = msg;
-            log(`Step: ${msg}`);
-        }
-
-        function cancelGeneration() {
-            document.getElementById('loader').style.display = 'none';
-            state.isGenerating = false;
-            log('Generation cancelled by user.');
-        }
-
-        // --- Generation Core ---
-        document.getElementById('btn-gen').addEventListener('click', async () => {
-            if(state.isGenerating) return;
-            const prompt = document.getElementById('prompt').value.trim();
-            
-            if(!prompt) { log('Empty prompt ignored.'); return; }
-            if(!state.apiKey) { toggleSettings(true); return; }
-
-            // Start UI
-            document.getElementById('prompt').blur();
-            document.getElementById('loader').style.display = 'flex';
-            state.isGenerating = true;
-
-            try {
-                // 1. Fetch Code
-                setProgress('Connecting to Gemini AI...');
-                const htmlCode = await fetchGeminiCode(prompt);
-                
-                // 2. Inject Code
-                setProgress('Compiling HTML Structure...');
-                const stage = document.getElementById('render-stage');
-                stage.innerHTML = htmlCode;
-                
-                // Allow DOM to settle (load fonts, styles)
-                await new Promise(r => setTimeout(r, 1000));
-
-                // 3. Rasterize
-                setProgress('Rendering High-Res Texture...');
-                const canvas = await html2canvas(stage, {
-                    scale: 2, 
-                    useCORS: true,
-                    logging: false,
-                    backgroundColor: null,
-                    width: 375,
-                    height: 667
-                });
-
-                // 4. Apply to AR
-                setProgress('Updating AR Materials...');
-                updateARPlane(canvas);
-                
-                log('Process Complete!', 'success');
-                
-                // Auto-close loader
-                setTimeout(() => {
-                    document.getElementById('loader').style.display = 'none';
-                    state.isGenerating = false;
-                }, 500);
-
-            } catch (err) {
-                log(err.message, 'error');
-                alert("Error: " + err.message);
-                document.getElementById('loader').style.display = 'none';
-                state.isGenerating = false;
-            }
-        });
-
-        async function fetchGeminiCode(userPrompt) {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${state.apiKey}`;
-            
-            const systemPrompt = `
-                Role: Expert UI Designer.
-                Task: Generate HTML for a mobile app screen (375x667).
-                Query: "${userPrompt}"
-                
-                Constraints:
-                1. Output raw HTML only. No Markdown. No \`\`\` fences.
-                2. Use inline CSS for ALL styling. No <style> blocks.
-                3. Use FontAwesome classes (e.g., <i class="fa-solid fa-user"></i>) for icons.
-                4. Font family is 'Inter', sans-serif.
-                5. Use CSS gradients for backgrounds. DO NOT use <img> tags requiring external URLs (CORS issues).
-                6. Make it colorful, high contrast, and fill the container height:100% width:100%.
-            `;
-
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: systemPrompt }] }]
-                    })
-                });
-
-                if(!response.ok) throw new Error(`API Error: ${response.status}`);
-
-                const data = await response.json();
-                let text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-                
-                // Clean Markdown
-                text = text.replace(/```html/g, '').replace(/```/g, '');
-                
-                log(`Received ${text.length} bytes of code.`);
-                return text;
-
-            } catch (e) {
-                throw new Error("AI Connection Failed. Check API Key.");
-            }
-        }
-
-        function updateARPlane(sourceCanvas) {
-            const destCtx = state.canvasCtx;
-            const destCanvas = document.getElementById('ui-canvas');
-            
-            // Clear and Draw
-            destCtx.clearRect(0, 0, destCanvas.width, destCanvas.height);
-            destCtx.drawImage(sourceCanvas, 0, 0, 375, 667);
-            
-            // Texture Update Logic
-            const plane = document.getElementById('ui-plane');
-            const mesh = plane.getObject3D('mesh');
-            if (mesh && mesh.material && mesh.material.map) {
-                mesh.material.map.needsUpdate = true;
-                log('Texture Refreshed.');
-            } else {
-                log('Warning: AR Mesh not ready yet.');
-            }
-        }
-
-        function drawPlaceholderCanvas() {
-            const ctx = state.canvasCtx;
-            ctx.fillStyle = '#1e293b';
-            ctx.fillRect(0,0,375,667);
-            ctx.fillStyle = '#3b82f6';
-            ctx.font = 'bold 30px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText("AR READY", 187, 333);
-            ctx.font = '16px Arial';
-            ctx.fillStyle = '#94a3b8';
-            ctx.fillText("Scan Hiro Marker", 187, 370);
-            
-            const plane = document.getElementById('ui-plane');
-            if(plane.getObject3D('mesh')) plane.getObject3D('mesh').material.map.needsUpdate = true;
-        }
 
     </script>
 </body>
 </html>
-
 
